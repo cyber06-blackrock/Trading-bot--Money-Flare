@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyFlare Pro | Advanced AI Trading Terminal</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #050608;
+            --bg-surface: #0e1117;
+            --bg-card: #161b22;
+            --accent: #f0b90b;
+            --accent-glow: rgba(240, 185, 11, 0.2);
+            --text-primary: #f0f6fc;
+            --text-secondary: #8b949e;
+            --border: #30363d;
+            --buy: #23d160;
+            --sell: #ff3b69;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 280px 1fr 380px;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            padding: 32px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .brand { font-size: 26px; font-weight: 800; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+        
+        .nav-item {
+            padding: 14px 18px;
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-item:hover, .nav-item.active { background: var(--bg-card); color: var(--text-primary); }
+        .nav-item.active { border-left: 3px solid var(--accent); }
+
+        /* Viewport */
+        .viewport {
+            padding: 24px;
+            overflow-y: auto;
+            background: radial-gradient(circle at top right, var(--accent-glow), transparent 40%);
+        }
+
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        
+        .account-info {
+            display: flex;
+            gap: 20px;
+            background: var(--bg-card);
+            padding: 12px 24px;
+            border-radius: 100px;
+            border: 1px solid var(--border);
+        }
+
+        .stat-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; }
+        .stat-value { font-family: 'JetBrains Mono'; font-weight: 700; color: var(--accent); }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+        }
+
+        /* Analytics Grid */
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .chart-container { height: 450px; overflow: hidden; }
+
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { text-align: left; font-size: 11px; color: var(--text-secondary); padding: 8px; border-bottom: 1px solid var(--border); }
+        td { padding: 12px 8px; font-size: 13px; font-family: 'JetBrains Mono'; }
+
+        /* Controls */
+        .control-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+        label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+        input, select {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            padding: 10px;
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono';
+        }
+
+        .btn { padding: 12px; border-radius: var(--radius-md); border: none; font-weight: 800; cursor: pointer; transition: 0.2s; }
+        .btn-buy { background: var(--buy); color: #000; }
+        .btn-sell { background: var(--sell); color: #fff; }
+        .btn-accent { background: var(--accent); color: #000; }
+
+        /* Right Panel */
+        .right-panel { background: var(--bg-surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; position: relative; }
+        .chat-header { padding: 20px; border-bottom: 1px solid var(--border); background: rgba(22, 27, 34, 0.5); backdrop-filter: blur(10px); }
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth; }
+        
+        .message { 
+            max-width: 85%; 
+            padding: 14px 18px; 
+            border-radius: 18px; 
+            font-size: 13.5px; 
+            line-height: 1.5;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .msg-user { 
+            align-self: flex-end; 
+            background: linear-gradient(135deg, var(--accent), #ffcc33); 
+            color: #000; 
+            border-bottom-right-radius: 4px;
+            font-weight: 500;
+        }
+
+        .msg-bot { 
+            align-self: flex-start; 
+            background: var(--bg-card); 
+            border: 1px solid var(--border); 
+            color: var(--text-primary);
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-meta {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .chat-input-area { 
+            padding: 20px; 
+            border-top: 1px solid var(--border); 
+            display: flex; 
+            gap: 12px;
+            background: var(--bg-surface);
+        }
+
+        .chat-input { 
+            flex: 1; 
+            background: var(--bg-deep); 
+            border: 1px solid var(--border); 
+            padding: 12px 20px; 
+            border-radius: 100px; 
+            color: var(--text-primary);
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .terminal { 
+            height: 160px; 
+            background: #000; 
+            padding: 14px; 
+            font-family: 'JetBrains Mono'; 
+            font-size: 10.5px; 
+            color: #4cd964; 
+            overflow-y: auto; 
+            border-top: 1px solid var(--border);
+        }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="brand">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="var(--accent)" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
+                <circle cx="12" cy="12" r="3" fill="var(--bg-card)"/>
+            </svg>
+            Money<span>Flare</span>
+        </div>
+        <div class="nav-section">
+            <div class="nav-item active" onclick="showTab('terminal')">Terminal</div>
+            <div class="nav-item" onclick="showTab('analytics')">Advanced Analytics</div>
+            <div class="nav-item" onclick="showTab('settings')">System Settings</div>
+        </div>
+
+        <div style="margin-top: auto;">
+            <div class="card" style="background: var(--accent-glow); border-color: var(--accent);">
+                <h4 style="font-size: 13px; margin-bottom: 12px;">AUTO-BOT ENGINE</h4>
+                <div class="control-group">
+                    <label>Active</label>
+                    <input type="checkbox" id="bot-toggle" onchange="toggleBot()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="viewport">
+        <!-- Terminal Tab -->
+        <div id="tab-terminal">
+            <div class="header">
+                <div>
+                    <h1 style="font-size: 24px; font-weight: 800;">Trading Terminal</h1>
+                    <p style="color: var(--text-secondary); font-size: 12px;">Binance Testnet Live Feed</p>
+                </div>
+                <div class="account-info">
+                    <div>
+                        <div class="stat-label">Wallet Balance</div>
+                        <div class="stat-value" id="top-balance">$ --.---</div>
+                    </div>
+                    <div>
+                        <div class="stat-label">Available Equity</div>
+                        <div class="stat-value" id="top-equity" style="color: var(--buy);">$ --.---</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="analytics-grid">
+                <div class="card">
+                    <div class="stat-label">24h High</div>
+                    <div id="stat-high" class="stat-value" style="color: var(--buy);">--.---</div>
+                </div>
+                <div class="card">
+                    <div class="stat-label">24h Low</div>
+                    <div id="stat-low" class="stat-value" style="color: var(--sell);">--.---</div>
+                </div>
+                <div class="card">
+                    <div class="stat-label">Sentiment</div>
+                    <div id="stat-sentiment" class="stat-value">NEUTRAL</div>
+                </div>
+                <div class="card">
+                    <div class="stat-label">Active Pairs</div>
+                    <div class="stat-value">BTC/USDT</div>
+                </div>
+            </div>
+
+            <div class="card chart-container">
+                <div id="tradingview_widget" style="height: 100%;"></div>
+            </div>
+
+            <div class="card">
+                <h4 style="margin-bottom: 16px;">Execution & Risk</h4>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+                    <div class="control-group">
+                        <label>Symbol</label>
+                        <input type="text" id="order-symbol" value="BTCUSDT">
+                    </div>
+                    <div class="control-group">
+                        <label>Qty</label>
+                        <input type="number" id="order-qty" value="0.001">
+                    </div>
+                    <div class="control-group">
+                        <label>Type</label>
+                        <select id="order-type"><option value="MARKET">Market</option></select>
+                    </div>
+                    <div class="control-group" style="justify-content: flex-end;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <button class="btn btn-buy" onclick="executeTrade('BUY')">LONG</button>
+                            <button class="btn btn-sell" onclick="executeTrade('SELL')">SHORT</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h4 style="margin-bottom: 12px;">Open Positions</h4>
+                <table id="positions-table">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Amount</th>
+                            <th>Entry Price</th>
+                            <th>Unrealized PnL</th>
+                            <th>Liquidation</th>
+                        </tr>
+                    </thead>
+                    <tbody id="positions-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Analytics Tab -->
+        <div id="tab-analytics" class="hidden">
+            <h1 style="margin-bottom: 24px;">Advanced Analytics</h1>
+            
+            <div class="analytics-grid">
+                <div class="card">
+                    <div class="stat-label">Win Rate</div>
+                    <div id="perf-winrate" class="stat-value" style="color: var(--buy);">--%</div>
+                </div>
+                <div class="card">
+                    <div class="stat-label">Total Realized PnL</div>
+                    <div id="perf-pnl" class="stat-value">--.---</div>
+                </div>
+                <div class="card">
+                    <div class="stat-label">Trade Count</div>
+                    <div id="perf-count" class="stat-value">0</div>
+                </div>
+                <div class="card">
+                    <div class="stat-label">Efficiency Score</div>
+                    <div class="stat-value" style="color: var(--accent);">OPTIMAL</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom: 20px;">Transaction History</h3>
+                <table id="history-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Price</th>
+                            <th>Qty</th>
+                            <th>Realized PnL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="tab-settings" class="hidden">
+            <h1 style="margin-bottom: 24px;">System Settings</h1>
+            <div class="card" style="max-width: 600px;">
+                <h3 style="margin-bottom: 20px;">Risk Management</h3>
+                <div class="control-group">
+                    <label>Stop Loss (%)</label>
+                    <input type="number" id="set-sl" value="0.5" step="0.1">
+                </div>
+                <div class="control-group">
+                    <label>Take Profit (%)</label>
+                    <input type="number" id="set-tp" value="1.0" step="0.1">
+                </div>
+                <div class="control-group">
+                    <label>Default Position Size (Base Asset)</label>
+                    <input type="number" id="set-size" value="0.001" step="0.001">
+                </div>
+                <button class="btn btn-accent" onclick="saveRiskSettings()">Save Configuration</button>
+            </div>
+            
+            <div class="card" style="max-width: 600px;">
+                <h3>System Status</h3>
+                <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Binance API</span>
+                        <span style="color: var(--buy);">CONNECTED</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Gemini AI Engine</span>
+                        <span id="ai-status" style="color: var(--accent);">READY</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div style="padding: 20px; border-bottom: 1px solid var(--border);">
+            <h3 style="font-size: 16px;">AI Analyst</h3>
+        </div>
+        <div class="chat-messages" id="chat-box"></div>
+        <div class="chat-input-area">
+            <input type="text" class="chat-input" id="chat-input" placeholder="Type command...">
+            <button class="btn btn-accent" style="padding: 10px 15px;" onclick="sendMessage()">SEND</button>
+        </div>
+        <div class="terminal" id="terminal"></div>
+    </div>
+
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const chatBox = document.getElementById('chat-box');
+        const terminal = document.getElementById('terminal');
+
+        // Initial Chart
+        new TradingView.widget({
+            "autosize": true,
+            "symbol": "BINANCE:BTCUSDT",
+            "interval": "1",
+            "theme": "dark",
+            "container_id": "tradingview_widget",
+            "backgroundColor": "#161b22"
+        });
+
+        function showTab(tabId) {
+            ['terminal', 'analytics', 'settings'].forEach(id => {
+                document.getElementById('tab-' + id).classList.add('hidden');
+                document.querySelectorAll('.nav-item').forEach(el => {
+                    if (el.innerText.toLowerCase().includes(id)) el.classList.remove('active');
+                });
+            });
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+            // Add active class back
+            document.querySelectorAll('.nav-item').forEach(el => {
+                if (el.innerText.toLowerCase().includes(tabId)) el.classList.add('active');
+            });
+        }
+
+        // Data Updates
+        async function updateData() {
+            try {
+                const [acct, pos, stats, sent] = await Promise.all([
+                    fetch('/api/account'),
+                    fetch('/api/positions'),
+                    fetch('/api/market_stats'),
+                    fetch('/api/sentiment')
+                ]);
+                
+                const acctData = await acct.json();
+                if (acctData.success) {
+                    document.getElementById('top-balance').innerText = `$ ${parseFloat(acctData.balance).toFixed(2)}`;
+                    document.getElementById('top-equity').innerText = `$ ${parseFloat(acctData.equity).toFixed(2)}`;
+                }
+
+                const posData = await pos.json();
+                const tbody = document.getElementById('positions-body');
+                tbody.innerHTML = '';
+                if (posData.success) {
+                    posData.positions.forEach(p => {
+                        const row = `<tr>
+                            <td>${p.symbol}</td>
+                            <td style="color: ${parseFloat(p.positionAmt) > 0 ? 'var(--buy)' : 'var(--sell)'}">${p.positionAmt}</td>
+                            <td>${parseFloat(p.entryPrice).toFixed(2)}</td>
+                            <td style="color: ${parseFloat(p.unRealizedProfit) >= 0 ? 'var(--buy)' : 'var(--sell)'}">${parseFloat(p.unRealizedProfit).toFixed(2)}</td>
+                            <td style="color: var(--sell);">${parseFloat(p.liquidationPrice).toFixed(2)}</td>
+                        </tr>`;
+                        tbody.innerHTML += row;
+                    });
+                }
+
+                const statsData = await stats.json();
+                if (statsData.success) {
+                    document.getElementById('stat-high').innerText = parseFloat(statsData.high).toFixed(2);
+                    document.getElementById('stat-low').innerText = parseFloat(statsData.low).toFixed(2);
+                }
+
+                const sentData = await sent.json();
+                const sentEl = document.getElementById('stat-sentiment');
+                sentEl.innerText = sentData.sentiment.toUpperCase();
+                sentEl.style.color = sentData.sentiment === 'Bullish' ? 'var(--buy)' : (sentData.sentiment === 'Bearish' ? 'var(--sell)' : 'var(--accent)');
+
+                // Update History & Performance
+                const [tradesRes, perfRes] = await Promise.all([
+                    fetch('/api/trades'),
+                    fetch('/api/performance')
+                ]);
+                
+                const tradesData = await tradesRes.json();
+                if (tradesData.success) {
+                    const hBody = document.getElementById('history-body');
+                    hBody.innerHTML = '';
+                    tradesData.trades.forEach(t => {
+                        const row = `<tr>
+                            <td>${new Date(t.time).toLocaleTimeString()}</td>
+                            <td>${t.symbol}</td>
+                            <td style="color: ${t.side === 'BUY' ? 'var(--buy)' : 'var(--sell)'}">${t.side}</td>
+                            <td>${parseFloat(t.price).toFixed(2)}</td>
+                            <td>${t.qty}</td>
+                            <td style="color: ${parseFloat(t.realizedPnl) >= 0 ? 'var(--buy)' : 'var(--sell)'}">${parseFloat(t.realizedPnl).toFixed(4)}</td>
+                        </tr>`;
+                        hBody.innerHTML += row;
+                    });
+                }
+
+                const perfData = await perfRes.json();
+                if (perfData.success) {
+                    document.getElementById('perf-winrate').innerText = perfData.win_rate + '%';
+                    const pnlEl = document.getElementById('perf-pnl');
+                    pnlEl.innerText = `$ ${perfData.total_pnl.toFixed(4)}`;
+                    pnlEl.style.color = perfData.total_pnl >= 0 ? 'var(--buy)' : 'var(--sell)';
+                    document.getElementById('perf-count').innerText = perfData.count;
+                }
+            } catch (e) {}
+        }
+
+        setInterval(updateData, 4000);
+        updateData();
+
+        socket.on('price_update', (data) => {
+            // Updated via polling to save bandwidth
+        });
+
+        socket.on('bot_action', (data) => {
+            addChatMessage(data.msg, 'bot');
+            addLog(data.msg, 'var(--accent)');
+        });
+
+        async function saveRiskSettings() {
+            const res = await fetch('/api/update_risk', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    stop_loss: document.getElementById('set-sl').value,
+                    take_profit: document.getElementById('set-tp').value,
+                    size: document.getElementById('set-size').value
+                })
+            });
+            const data = await res.json();
+            if (data.success) addLog("System settings updated successfully.");
+        }
+
+        // Helper functions
+        function addChatMessage(text, type) {
+            const div = document.createElement('div');
+            div.className = `message msg-${type}`;
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const label = type === 'bot' ? '🤖 AI ANALYST' : '👤 YOU';
+            
+            div.innerHTML = `
+                <div class="message-meta">${label} • ${time}</div>
+                <div class="message-content">${text}</div>
+            `;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function addLog(msg, color = '#4cd964') {
+            const div = document.createElement('div');
+            div.style.color = color;
+            div.innerText = `> ${msg}`;
+            terminal.appendChild(div);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+            addChatMessage(msg, 'user');
+            input.value = '';
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ message: msg })
+            });
+            const data = await res.json();
+            addChatMessage(data.message, 'bot');
+        }
+
+        async function executeTrade(side) {
+            const symbol = document.getElementById('order-symbol').value;
+            const qty = document.getElementById('order-qty').value;
+            const type = document.getElementById('order-type').value;
+            addLog(`Executing ${side}...`);
+            const res = await fetch('/api/place_order', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ symbol, side, qty, type })
+            });
+            const data = await res.json();
+            if (data.success) addLog(`SUCCESS: ${data.data.orderId}`, 'var(--buy)');
+            else addLog(`ERROR: ${data.error}`, 'var(--sell)');
+        }
+
+        async function toggleBot() {
+            const active = document.getElementById('bot-toggle').checked;
+            const symbol = document.getElementById('order-symbol').value;
+            await fetch('/api/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ active, symbol })
+            });
+            addLog(active ? 'AUTO-BOT ENGAGED' : 'AUTO-BOT DISENGAGED');
+        }
+    </script>
+</body>
+</html>

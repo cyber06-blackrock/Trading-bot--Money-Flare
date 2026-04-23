@@ -1,0 +1,10 @@
+python-binance
+python-dotenv
+click
+colorama
+Flask
+flask-cors
+flask-socketio
+google-generativeai
+gunicorn
+eventlet
